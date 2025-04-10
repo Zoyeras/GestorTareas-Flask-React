@@ -1,0 +1,17 @@
+# Backend - Python
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env
+Backend/database/
+
+# Frontend - Node.js
+node_modules/
+package-lock.json  # Solo si no quieres subirlo
+build/
+
+# Sistema
+.DS_Store
+Thumbs.db
