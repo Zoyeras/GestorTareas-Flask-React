@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import axios from 'axios';
+import api from '../api/axiosConfig';
 
 const Tasks = () => {
-  const { user, token, logout } = useAuth();
+  const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [tasks, setTasks] = useState([]);
@@ -18,12 +18,7 @@ const Tasks = () => {
   useEffect(() => {
     const fetchTasks = async () => {
       try {
-        const response = await axios.get('http://localhost:5000/tasks', {
-          headers: { Authorization: `Bearer ${token}`}
-        });
-        if (!Array.isArray(response.data)) {
-          throw new Error("Formato de datos inválido");
-        }
+        const response = await api.get("/tasks");
         setTasks(response.data);
       } catch (err) {
         if (err.response?.status === 401) {
@@ -37,10 +32,10 @@ const Tasks = () => {
       }
     };
 
-    if (user && token) {
+    if (user) {
       fetchTasks();
     }
-  }, [user, token, logout, navigate]);
+  }, [user, logout, navigate]);
 
   if (loading) {
     return (

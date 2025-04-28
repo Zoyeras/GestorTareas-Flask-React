@@ -21,15 +21,13 @@ export const AuthProvider = ({ children }) => {
       
       if (savedToken) {
         try {
-          // Verificar token con el backend
-          await api.get("/api/auth/validate", {
-            headers: { Authorization: `Bearer ${savedToken}` }
-          });
+          api.defaults.headers.common["Authorization"] = `Bearer ${savedToken}`;
           
-          // Cargar usuario desde localStorage si el token es válido
-          const savedUser = localStorage.getItem("user");
-          setUser(savedUser ? JSON.parse(savedUser) : null);
-          
+          const response = await api.get("/user");
+          setUser(response.data);
+          localStorage.setItem("user", JSON.stringify(response.data));
+          setToken(savedToken);
+
         } catch (error) {
           // Token inválido: limpiar datos
           logout();
@@ -43,14 +41,15 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password) => {
     try {
-      const response = await api.post("/api/auth/login", { email, password });
+      const response = await api.post("/auth/login", { email, password });
       const { token, user: userData } = response.data;
 
       // Guardar en estado y localStorage
-      setUser(userData);
-      setToken(token);
       localStorage.setItem("token", token);
       localStorage.setItem("user", JSON.stringify(userData));
+      api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+
+      setUser(userData);
 
       // Redirigir después de guardar todo
       navigate(userData.role === "admin" ? "/admin/dashboard" : "/tasks");

@@ -53,6 +53,19 @@ const EditTask = () => {
 
   if (loading) return <div>Cargando...</div>;
 
+  const deleteTask = async () => {
+    const confirmDelete = window.confirm("¿Estas seguro de elminar esta tarea?");
+    if (!confirmDelete) return;
+
+    try{
+      await api.delete(`/tasks/${id}`,{
+        headers: { Authorization: 'Bearer ${token}'}
+      });
+      navigate(`/tasks`);
+    } catch (err){
+      setError('Error al elminar la tarea');
+    }
+  };
   return (
     <div className="container mx-auto px-4 py-8">
       <form onSubmit={handleSubmit} className="max-w-2xl mx-auto bg-white p-6 rounded-lg shadow-md">
@@ -138,6 +151,12 @@ const EditTask = () => {
           >
             Guardar Cambios
           </button>
+          <button
+            type="button"
+            onClick={deleteTask}
+            className="bg-red-500 text-white px-6 py-2 rounded hover:bg-red-600 ml-auto"
+            > Elminar 
+            </button>
         </div>
       </form>
     </div>

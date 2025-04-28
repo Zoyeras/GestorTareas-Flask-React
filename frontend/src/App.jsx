@@ -78,7 +78,6 @@ function App() {
 
         {/* Ruta para páginas no encontradas */}
         <Route path="*" element={<Navigate to="/" replace />} />
-        <Route path="/tasks/:taskId" element={<TaskPage />} />
       </Routes>
 
   );

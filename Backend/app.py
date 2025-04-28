@@ -1,5 +1,5 @@
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from functools import wraps
 
 from flask import Flask, jsonify, request, send_file, send_from_directory
@@ -11,9 +11,7 @@ from sqlalchemy.pool import NullPool
 from werkzeug.security import check_password_hash, generate_password_hash
 
 basedir = os.path.abspath(os.path.dirname(__file__))
-frontend_dir = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "..", "frontend", "build")
-)
+frontend_dir = os.path.abspath(os.path.join(basedir, "..", "frontend", "build"))
 print("Frondend dir:", frontend_dir)
 
 app = Flask(
@@ -23,6 +21,8 @@ app = Flask(
 )
 app.config["JWT_SECRET_KEY"] = "Marinero1234"
 app.config["JWT_IDENTITY_CLAIM"] = "identity"
+app.config["JWT_ALGORITHM"] = "HS256"
+app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(hours=1)
 app.config["SQLALCHEMY_DATABASE_URI"] = (
     f"sqlite:///{os.path.join(basedir, 'database', 'tasks.db')}"
 )
@@ -36,6 +36,7 @@ app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
 }
 CORS(
     app,
+    origins=["http://localhost:3000"],
     supports_credentials=True,
     methods=["GET", "POST", "PUT", "DELETE"],  # 👈 Métodos permitidos
     allow_headers=["Content-Type", "Authorization"],
@@ -114,7 +115,7 @@ def serve_static(filename):
     return send_from_directory("frontend/build/static", filename)
 
 
-@app.route("/register", methods=["POST"])
+@app.route("/api/register", methods=["POST"])
 def register():
     data = request.get_json()
     email = data.get("email")
@@ -160,7 +161,7 @@ def login():
     )
 
 
-@app.route("/admin/users", methods=["GET"])
+@app.route("/api/admin/users", methods=["GET"])
 @jwt_required()
 @admin_required
 def get_all_users():
@@ -181,7 +182,7 @@ def get_all_users():
     )
 
 
-@app.route("/admin/tasks", methods=["GET"])
+@app.route("/api/admin/tasks", methods=["GET"])
 @jwt_required()
 @admin_required
 def get_all_tasks():
@@ -201,7 +202,7 @@ def get_all_tasks():
 
 
 # Asignar tarea a usuario (solo admin)
-@app.route("/admin/tasks/<int:task_id>/assign", methods=["PATCH"])
+@app.route("/api/admin/tasks/<int:task_id>/assign", methods=["PATCH"])
 @jwt_required()
 @admin_required
 def assign_task(task_id):
@@ -246,7 +247,7 @@ def assign_task(task_id):
 
 
 # Eliminar cualquier tarea (solo admin)
-@app.route("/admin/tasks/<int:task_id>", methods=["DELETE"])
+@app.route("/api/admin/tasks/<int:task_id>", methods=["DELETE"])
 @jwt_required()
 @admin_required
 def admin_delete_task(task_id):
@@ -260,7 +261,7 @@ def admin_delete_task(task_id):
     return jsonify({"message": "Tarea eliminada"}), 200
 
 
-@app.route("/admin/users/<int:user_id>", methods=["PUT"])
+@app.route("/api/admin/users/<int:user_id>", methods=["PUT"])
 @jwt_required()
 @admin_required
 def update_user(user_id):
@@ -299,7 +300,7 @@ def update_user(user_id):
     )
 
 
-@app.route("/admin/users/<int:user_id>", methods=["DELETE"])
+@app.route("/api/admin/users/<int:user_id>", methods=["DELETE"])
 @jwt_required()
 @admin_required
 def delete_user(user_id):
@@ -319,7 +320,7 @@ def delete_user(user_id):
     return jsonify({"message": "Usuario eliminado"}), 200
 
 
-@app.route("/admin/dashboard")
+@app.route("/api/admin/dashboard")
 @jwt_required()
 def admin_dashboard():
     current_user = get_jwt_identity()
@@ -328,7 +329,7 @@ def admin_dashboard():
     return jsonify({"message": "Bienvenido, admin"})
 
 
-@app.route("/admin/tasks", methods=["POST"])
+@app.route("/api/admin/tasks", methods=["POST"])
 @jwt_required()
 @admin_required
 def admin_create_task():
@@ -366,7 +367,7 @@ def admin_create_task():
     )
 
 
-@app.route("/user", methods=["GET"])
+@app.route("/api/user", methods=["GET"])
 @jwt_required()
 def get_current_user():
     current_user = get_jwt_identity()
@@ -374,7 +375,7 @@ def get_current_user():
     return jsonify({"id": user.id, "email": user.email, "role": user.role}), 200
 
 
-@app.route("/tasks", methods=["POST"])
+@app.route("/api/tasks", methods=["POST"])
 @jwt_required()
 def create_task():
     current_user = get_jwt_identity()
@@ -423,7 +424,7 @@ def create_task():
         return jsonify({"error": str(e)}), 500
 
 
-@app.route("/tasks", methods=["GET"])
+@app.route("/api/tasks", methods=["GET"])
 @jwt_required()
 def get_tasks():
     current_user = get_jwt_identity()
@@ -436,49 +437,28 @@ def get_tasks():
         return jsonify({"error": "Error al procesar las tareas"}), 500
 
 
-@app.route("/tasks/<int:task_id>", methods=["DELETE"])
+@app.route("/api/tasks/<int:task_id>", methods=["DELETE"])
 @jwt_required()
 def delete_task(task_id):
-    current_user = get_jwt_identity()
-    task = Task.query.get_or_404(task_id)
+    try:
+        current_user = get_jwt_identity()
+        task = Task.query.get_or_404(task_id)
 
-    # Solo admin puede editar tareas de otros
-    if task.user_id != current_user["id"] and current_user["role"] != "admin":
-        return jsonify({"error": "No autorizado"}), 403
+        # Solo admin puede editar tareas de otros
+        if task.user_id != current_user["id"] and current_user["role"] != "admin":
+            return jsonify({"error": "No autorizado"}), 403
 
-    data = request.get_json()
+        db.session.delete(task)
+        db.session.commit()
 
-    # Permitir cambio de asignación solo a admins
-    if "user_id" in data:
-        if current_user["role"] != "admin":
-            return (
-                jsonify({"error": "Solo administradores pueden reasignar tareas"}),
-                403,
-            )
+        return jsonify({"message": "Tarea eliminada"}), 200
 
-        if not User.query.get(data["user_id"]):
-            return jsonify({"error": "Usuario no encontrado"}), 404
-
-        task.user_id = data["user_id"]
-        # Realizar actualizaciones
-    task.title = data.get("title", task.title)
-    task.description = data.get("description", task.description)
-    task.status = data.get("status", task.status)
-    task.priority = data.get("priority", task.priority)
-
-    # Manejo de fecha
-    if data.get("due_date"):
-        try:
-            task.due_date = datetime.strptime(data["due_date"], "%Y-%m-%d")
-        except ValueError:
-            return jsonify({"error": "Formato de fecha inválido"}), 400
-
-    db.session.delete(task)
-    db.session.commit()
-    return jsonify({"message": "Tarea eliminada"})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
 
 
-@app.route("/tasks/<int:task_id>", methods=["GET"])
+@app.route("/api/tasks/<int:task_id>", methods=["GET"])
 @jwt_required()
 def get_task(task_id):
     task = Task.query.get_or_404(task_id)
@@ -491,7 +471,7 @@ def get_task(task_id):
     return jsonify(task.to_dict()), 200
 
 
-@app.route("/tasks/<int:task_id>", methods=["PUT"])
+@app.route("/api/tasks/<int:task_id>", methods=["PUT"])
 @jwt_required()
 def update_task(task_id):
     current_user = get_jwt_identity()
