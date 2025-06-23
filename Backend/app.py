@@ -38,7 +38,7 @@ CORS(
     app,
     origins=["http://localhost:3000"],
     supports_credentials=True,
-    methods=["GET", "POST", "PUT", "DELETE"],  # 👈 Métodos permitidos
+    methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["Content-Type", "Authorization"],
 )
 
